@@ -1,14 +1,19 @@
 import React from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 
-const STAT_DEFS = [
-  { key: 'totalSessions',    label: 'Total Sessions'     },
-  { key: 'totalHours',       label: 'Estimated Hours'    },
-  { key: 'decisionsCount',   label: 'Decisions Made'     },
-  { key: 'systemsBuilt',     label: 'Systems Built'      },
-  { key: 'documentsCreated', label: 'Documents Created'  },
-  { key: 'daysActive',       label: 'Days Active'        },
+const NOW_DEFS = [
+  { key: 'views',       label: 'Views on our posts' },
+  { key: 'followers',   label: 'Followers',         noteKey: 'followers' },
+  { key: 'subscribers', label: 'Email subscribers' },
+  { key: 'published',   label: 'Posts published' },
+  { key: 'revenue',     label: 'Revenue',           money: true, noteKey: 'revenue' },
 ];
+
+function nextGoal(milestones, phasePrefix) {
+  return milestones
+    .filter(m => !m.achieved && m.phase.startsWith(phasePrefix))
+    .sort((a, b) => a.order - b.order)[0];
+}
 
 function fmtDate(iso) {
   if (!iso) return null;
@@ -16,7 +21,7 @@ function fmtDate(iso) {
 }
 
 export default function Overview() {
-  const { stats, milestones, impactMoments, entries } = useStore();
+  const { statList, milestones, impactMoments, entries, feed } = useStore();
 
   // Group milestones by phase, preserve insertion order
   const phases = [];
@@ -56,15 +61,38 @@ export default function Overview() {
 
       {/* ── STATS ROW ────────────────────────────────────────── */}
       <div className="stats-row">
-        {STAT_DEFS.map(({ key, label }) => (
-          <div key={key} className="stat-cell">
+        {statList.map(({ label, value }) => (
+          <div key={label} className="stat-cell">
             <div className="stat-number">
-              {stats[key].toLocaleString()}
+              {Number(value || 0).toLocaleString()}
             </div>
             <div className="stat-label">{label}</div>
           </div>
         ))}
       </div>
+
+      {/* ── WHERE WE ARE NOW (live from Pulse) ───────────────── */}
+      {feed?.current && (
+        <>
+          <div className="impact-section-label">Where We Are Now</div>
+          <div className="now-grid">
+            {NOW_DEFS.map(({ key, label, money, noteKey }) => {
+              const goal = nextGoal(milestones, {
+                views: 'Audience — Views', followers: 'Audience — Followers',
+                subscribers: 'Audience — Email', published: 'Content', revenue: 'Revenue',
+              }[key]);
+              return (
+                <div key={key} className="now-cell">
+                  <div className="now-number">{money ? '$' : ''}{(feed.current[key] ?? 0).toLocaleString()}</div>
+                  <div className="now-label">{label}</div>
+                  {goal && <div className="now-next">Next: {goal.label}</div>}
+                  {noteKey && feed.notes?.[noteKey] && <div className="now-note">{feed.notes[noteKey]}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* ── IMPACT MARKERS PANEL ─────────────────────────────── */}
       <div className="impact-section-label">Impact Markers</div>

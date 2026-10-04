@@ -7,6 +7,7 @@ import React, {
   useMemo,
 } from 'react';
 import { CONFIG } from '../config/orchestration.config.js';
+import { loadFeed } from '../lib/feed.js';
 
 // ── Storage keys — versioned so future schema changes are safe ──
 const K = {
@@ -17,6 +18,7 @@ const K = {
   STATS_OVERRIDE: 'orch_stats_override_v1',
   WORKSTREAMS:    'orch_workstreams_v1',
   PROMPT:         'orch_prompt_v1',
+  PASS:           'orch_feed_pass_v1',
 };
 
 function load(key, fallback) {
@@ -49,6 +51,36 @@ export function StoreProvider({ children }) {
   const [statsOverride, setStatsOverride] = useState(() => load(K.STATS_OVERRIDE, {}));
   const [workstreams,   setWorkstreams]   = useState(() => load(K.WORKSTREAMS,     CONFIG.workstreams));
   const [briefPrompt,   setBriefPrompt]   = useState(() => load(K.PROMPT,          CONFIG.briefPromptTemplate));
+
+  // ── Live feed from Notion + Pulse (written hourly by abbrescia-os/pipeline/orchestration_feed.py) ──
+  const [feed,       setFeed]       = useState(null);
+  const [feedStatus, setFeedStatus] = useState('loading'); // loading | ready | locked | badpass | nofeed
+
+  const refreshFeed = useCallback(async (pass) => {
+    const passphrase = pass ?? load(K.PASS, '');
+    try {
+      const f = await loadFeed(passphrase);
+      if (pass) persist(K.PASS, pass);
+      setFeed(f);
+      setFeedStatus('ready');
+      return true;
+    } catch (err) {
+      setFeedStatus(['locked', 'badpass', 'nofeed'].includes(err.message) ? err.message : 'nofeed');
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshFeed();
+    const t = setInterval(() => refreshFeed(), 15 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [refreshFeed]);
+
+  const lockFeed = useCallback(() => {
+    try { localStorage.removeItem(K.PASS); } catch { /* ignore */ }
+    setFeed(null);
+    setFeedStatus('locked');
+  }, []);
 
   // Sync each slice to localStorage on change
   useEffect(() => { persist(K.ENTRIES,        entries);       }, [entries]);
@@ -151,10 +183,35 @@ export function StoreProvider({ children }) {
     daysActive:       statsOverride.daysActive       ?? computedStats.daysActive,
   }), [computedStats, statsOverride]);
 
+  // Feed data is the record; anything logged by hand in Admin is kept on this device and shown alongside it.
+  const allEntries = useMemo(
+    () => (feed ? [...entries, ...feed.entries] : entries),
+    [entries, feed],
+  );
+  const allMilestones = feed ? feed.milestones : milestones;
+  const allImpacts = useMemo(
+    () => (feed ? [...impactMoments, ...feed.impactMoments] : impactMoments),
+    [impactMoments, feed],
+  );
+  const statList = feed?.stats ?? [
+    { label: 'Total Sessions', value: stats.totalSessions },
+    { label: 'Estimated Hours', value: stats.totalHours },
+    { label: 'Decisions Made', value: stats.decisionsCount },
+    { label: 'Systems Built', value: stats.systemsBuilt },
+    { label: 'Documents Created', value: stats.documentsCreated },
+    { label: 'Days Active', value: stats.daysActive },
+  ];
+
   const value = {
-    entries,
-    milestones,
-    impactMoments,
+    entries: allEntries,
+    localEntries: entries,
+    milestones: allMilestones,
+    impactMoments: allImpacts,
+    statList,
+    feed,
+    feedStatus,
+    refreshFeed,
+    lockFeed,
     adminPin,
     stats,
     computedStats,

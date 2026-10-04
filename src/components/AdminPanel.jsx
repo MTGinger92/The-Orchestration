@@ -389,7 +389,7 @@ function LogEntryForm({ workstreams, onEntryLogged }) {
 //  EDIT ENTRIES
 // ══════════════════════════════════════════════════════════════════
 function EditEntries({ workstreams }) {
-  const { entries, updateEntry, deleteEntry, briefPrompt } = useStore();
+  const { localEntries: entries, updateEntry, deleteEntry, briefPrompt } = useStore(); // feed entries are edited in Notion
   const [search,       setSearch]       = useState('');
   const [expandedId,   setExpandedId]   = useState(null);
   const [editData,     setEditData]     = useState({});
