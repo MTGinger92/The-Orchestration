@@ -317,7 +317,9 @@ export default function LegacyLedger({ entry, onClose }) {
 
         {/* ── ACTIONS FOOTER ─────────────────────────────── */}
         <div className="ledger-actions">
-          {editing ? (
+          {entry.source === 'notion' ? (
+            <NotionActions entry={entry} />
+          ) : editing ? (
             <>
               <button className="btn btn-primary" onClick={saveEdit}>Save Changes</button>
               <button className="btn btn-ghost"   onClick={cancelEdit}>Cancel</button>
@@ -353,6 +355,42 @@ export default function LegacyLedger({ entry, onClose }) {
 
       </div>
     </>
+  );
+}
+
+// ── Entries from Notion: the record lives there, so actions open Notion ──
+function NotionActions({ entry }) {
+  const [opened, setOpened] = useState(false);
+  const notionUrl = entry.notionUrl || `https://www.notion.so/${String(entry.id).replace(/-/g, '')}`;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-sm)', width: '100%' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-sm)' }}>
+        {entry.status !== 'COMPLETE' && (
+          <a className="btn btn-gold" href={notionUrl} target="_blank" rel="noreferrer" onClick={() => setOpened(true)}>
+            ✓ Mark done in Notion
+          </a>
+        )}
+        {entry.doItHere && entry.status !== 'COMPLETE' && (
+          <a className="btn btn-ghost" href={entry.doItHere} target="_blank" rel="noreferrer">Do it here ↗</a>
+        )}
+        {entry.status === 'COMPLETE' && (
+          <a className="btn btn-ghost" href={entry.proof || notionUrl} target="_blank" rel="noreferrer">
+            {entry.proof ? 'See the proof ↗' : 'Open in Notion ↗'}
+          </a>
+        )}
+      </div>
+      {opened && (
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-refined)', fontStyle: 'italic' }}>
+          Tick <b>Done</b> on that row in Notion. It moves into the record here within 15 minutes.
+        </p>
+      )}
+      {entry.claudePrompt && entry.status !== 'COMPLETE' && (
+        <details style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+          <summary style={{ cursor: 'pointer' }}>Claude prompt for this</summary>
+          <p style={{ marginTop: '6px', whiteSpace: 'pre-wrap', color: 'var(--text-body)' }}>{entry.claudePrompt}</p>
+        </details>
+      )}
+    </div>
   );
 }
 
